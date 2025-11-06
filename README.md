@@ -68,7 +68,3 @@ This project is intended for:
 
 ---
 
-
-
-### ✅ **I²C Master Block Diagram**
-
