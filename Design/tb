@@ -1,0 +1,89 @@
+`timescale 1ns/1ps
+
+module i2c_top_tb;
+
+reg clk = 0, rst = 0, newd = 0, op;
+reg [6:0] addr;
+reg [7:0] din;
+wire [7:0] dout;
+wire busy, ack_err, done;
+
+// DUT
+i2c_top dut (
+    .clk(clk),
+    .rst(rst),
+    .newd(newd),
+    .op(op),
+    .addr(addr),
+    .din(din),
+    .dout(dout),
+    .busy(busy),
+    .ack_err(ack_err),
+    .done(done)
+);
+
+// Clock generation (100 MHz)
+always #5 clk = ~clk;
+
+initial begin
+    // Reset system
+    rst = 1;
+    repeat(5) @(posedge clk);
+    rst = 0;
+    repeat(20) @(posedge clk);
+
+    // ================================================
+    // Step 1: Device 1 - Write, then Read (Physical 0x48)
+    // ================================================
+    @(posedge clk);
+    newd = 1;
+    op   = 0;          // write
+    addr = 7'h48;      // physical address
+    din  = 8'hA5;
+    #1000;
+    @(posedge clk);
+    newd = 0;
+    wait(done);
+    $display("[WR] Device 1 (0x48) din: %0h", din);
+
+    // Read back same device 1 (should get 8'hA5)
+    repeat(10) @(posedge clk);
+    @(posedge clk);
+    newd = 1;
+    op   = 1;          // read
+    addr = 7'h48;
+    @(posedge clk);
+    newd = 0;
+    wait(done);
+    $display("[RD] Device 1 (0x48) dout: %0h", dout);
+
+    // ================================================
+    // Step 2: Device 2 - Write, then Read (Virtual 0x49)
+    // ================================================
+    repeat(20) @(posedge clk);
+    @(posedge clk);
+    newd = 1;
+    op   = 0;          // write
+    addr = 7'h49;      // virtual address (FPGA remaps to 0x48 internally)
+    din  = 8'h5A;
+    @(posedge clk);
+    newd = 0;
+    wait(done);
+    $display("[WR] Device 2 (Virtual 0x49 -> Real 0x48) din: %0h", din);
+
+    // Read back same device 2 (should get 8'h5A)
+    repeat(10) @(posedge clk);
+    @(posedge clk);
+    newd = 1;
+    op   = 1;          // read
+    addr = 7'h49;
+    #1000;
+    @(posedge clk);
+    newd = 0;
+    wait(done);
+    $display("[RD] Device 2 (Virtual 0x49 -> Real 0x48) dout: %0h", dout);
+
+    $stop;
+end
+
+endmodule
